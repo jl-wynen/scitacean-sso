@@ -1,5 +1,12 @@
 # PKCE auth with Python and Keycloak
 
+## Nest steps
+
+- Make keycloak setup persistent for convenience
+- Launch scicat(+mongodb) in same docker compose
+- Configure scicat to use keycloak and try to use token from ketcloak with scicat.
+
+
 ## Keycloak setup
 
 ### General
