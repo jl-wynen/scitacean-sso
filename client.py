@@ -48,34 +48,35 @@ def main():
 def login() -> str:
     code_verifier, code_challenge = generate_pkce_pair()
 
-    # Start a server to handle the OAuth redirect with the auth code:
-    with OAuthHttpServer(("", PORT), OAuthHttpHandler) as httpd:
-        with httpx.Client(base_url=PROVIDER) as client:
+    with httpx.Client(base_url=PROVIDER) as client:
+        auth_uri = build_login_uri(client, code_challenge)
+
+        # Start a server to handle the OAuth redirect with the auth code:
+        with OAuthHttpServer(("", PORT), OAuthHttpHandler) as httpd:
             # Prompt the user to log in:
-            auth_uri = build_login_uri(client, code_challenge)
             webbrowser.open_new(auth_uri)
             httpd.handle_request()
 
-            auth_code = httpd.authorization_code
-            assert auth_code is not None
+        auth_code = httpd.authorization_code
+        assert auth_code is not None
 
-            # Exchange the auth code for a token:
-            data = {
-                "code": auth_code,
-                "client_id": CLIENT_ID,
-                "grant_type": "authorization_code",
-                "scopes": " ".join(
-                    SCOPES
-                ),  # space-delimited (https://www.keycloak.org/securing-apps/token-exchange)
-                "redirect_uri": REDIRECT_URI,
-                "code_verifier": code_verifier,
-            }
-            response = client.post(TOKEN_URI, data=data)
-            response.raise_for_status()
-            j = response.json()
-        assert j["token_type"] == "Bearer"
-        access_token = j["access_token"]
-        return access_token
+        # Exchange the auth code for a token:
+        data = {
+            "code": auth_code,
+            "client_id": CLIENT_ID,
+            "grant_type": "authorization_code",
+            # space-delimited (https://www.keycloak.org/securing-apps/token-exchange):
+            "scopes": " ".join(SCOPES),
+            "redirect_uri": REDIRECT_URI,
+            "code_verifier": code_verifier,
+        }
+        response = client.post(TOKEN_URI, data=data)
+        response.raise_for_status()
+        j = response.json()
+    assert j["token_type"] == "Bearer"
+    print(j)
+    access_token = j["access_token"]
+    return access_token
 
 
 def build_login_uri(client: httpx.Client, code_challenge: str) -> str:
