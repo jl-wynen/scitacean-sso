@@ -35,3 +35,10 @@ docker compose -f keycloak.yaml up
     - PKCE method: Leave blank (The client will send the code challenge and exchange method)
   - Login settings:
     - Leave blank
+3. After creating the client, under 'Settings', add '*' to the 'Valid Redirect URIs'.
+   This is needed to redirect to the user's machine. (secure? -> should be because of PKCE, so only allow pkce in this client)
+
+  
+## Notes
+
+- Keycloak auth endpoints are listed at http://localhost:8080/realms/pkce-test/.well-known/openid-configuration
