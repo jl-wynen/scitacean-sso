@@ -44,6 +44,10 @@ docker compose -f keycloak.yaml up
     - Leave blank
 3. After creating the client, under 'Settings', add '*' to the 'Valid Redirect URIs'.
    This is needed to redirect to the user's machine. (secure? -> should be because of PKCE, so only allow pkce in this client)
+   - TODO: limit to URLs listed on https://www.oauth.com/oauth2-servers/oauth-native-apps/redirect-urls-for-native-apps/:
+   ```
+   http://127.0.0.1:[port]/ and http://::1:[port]/, and http://localhost:[port]/
+   ```
 
   
 ## Notes
