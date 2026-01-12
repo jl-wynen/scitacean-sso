@@ -18,10 +18,11 @@ import base64
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib import parse
 import webbrowser
+import logging
 
 from scitacean._internal import jwt
 from rich import print
-
+from rich.logging import RichHandler
 import httpx
 
 # Configured in Keycloak:
@@ -40,6 +41,12 @@ REDIRECT_URI = f"http://localhost:{PORT}"
 
 
 def main():
+    logging.basicConfig(
+        level="INFO",
+        format="[%(name)s] %(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler()],
+    )
     token = login()
     print(token)
     print(jwt.decode(token))
@@ -74,7 +81,6 @@ def login() -> str:
         response.raise_for_status()
         j = response.json()
     assert j["token_type"] == "Bearer"
-    print(j)
     access_token = j["access_token"]
     return access_token
 
@@ -110,25 +116,54 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
     """Handler for the OAuth HTTP server."""
 
     def do_GET(self) -> None:
+        html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark light" />
+    <title>Authenticated</title>
+    <script type="application/javascript">
+        // window.close();
+    </script>
+</head>
+<body style="text-align: center;">
+    <h1>Success</h1>
+    <p>You can now close this window and return to Python.</p>
+</body>
+</html>
+"""
+        data = html.encode("utf-8")
+
         self.send_response(200)
-        self.send_header("Content-Type", "text/html")
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         # TODO doesn't close the window on first login but does close when login is cached
         #   In the latter case, the user interacted with the window which triggered a page change
         #   and scripts are not allowed to close the window in that case.
         #   See https://developer.mozilla.org/en-US/docs/Web/API/Window/close
-        self.wfile.write(
-            """
-            <script type="application/javascript">window.close();</script>
-            <h1>Success</h1>
-            """.encode("UTF-8")
-        )
+        self.wfile.write(data)
 
         parsed = parse.urlparse(self.path)
         qs = parse.parse_qs(parsed.query)
         # TODO do we need to check more fields?
 
         self.server.authorization_code = qs.get("code", [None])[0]
+
+    def log_request(self, code: int, *args, **kwargs) -> None:
+        # `self.path` contains the auth token, so only show basics about the request
+        logging.getLogger("OAuth-server").info(
+            f"{self.command} ({code}) from {self.client_address}"
+        )
+
+    def log_error(self, *args, **kwargs) -> None:
+        # Override to avoid leaking the auth token
+        logging.getLogger("OAuth-server").error("Received error")
+
+    def log_message(self, *args, **kwargs) -> None:
+        # Override to avoid leaking the auth token
+        logging.getLogger("OAuth-server").info("Received message")
+
 
 def open_in_browser(url: str):
     try:
@@ -138,6 +173,7 @@ def open_in_browser(url: str):
         raise
     if not result:
         raise ValueError("Failed to open URL in browser")
+
 
 # Adapted from https://github.com/RomeoDespres/pkce
 def generate_code_verifier(length: int = 128) -> str:
