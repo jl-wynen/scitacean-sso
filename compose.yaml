@@ -1,0 +1,44 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.0
+    container_name: scicat_sso_keycloak
+    command: start-dev
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+
+  # mongodb:
+  #   image: mongo:latest
+  #   container_name: scicat_sso_mongo
+  #   ports:
+  #     - "27017:27017"
+  #
+  # scicat:
+  #   image: ghcr.io/scicatproject/backend-next:v4.26.0
+  #   container_name: scicat_sso_scicat
+  #   depends_on:
+  #     - keycloak
+  #     - mongodb
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - /home/jl/Work/cat/sso/backend/accounts.json:/home/node/app/functionalAccounts.json
+  #   environment:
+  #     DOI_PREFIX: DOI.SAMPLE.PREFIX
+  #     ELASTICSEARCH_ENABLED: no
+  #     HTTP_MAX_REDIRECTS: 10
+  #     HTTP_TIMEOUT: 5000  # in ms
+  #     JWT_EXPIRES_IN: 3600  # in s (expiry of token)
+  #     JWT_SECRET: a_scicat_secret
+  #     LOGBOOK_ENABLED: no
+  #     MONGODB_URI: mongodb://mongodb:27017/scicat
+  #     PID_PREFIX: sso
+  #     SITE: SSO
+  #     PORT: 3000
+
+volumes:
+  keycloak_data:

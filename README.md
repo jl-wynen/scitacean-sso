@@ -15,7 +15,7 @@ This is adapted from https://www.keycloak.org/getting-started/getting-started-do
 
 1. Start Keycloak:
 ```bash
-docker compose -f keycloak.yaml up
+docker compose -f compose.yaml up
 ```
 2. Open admin console at http://localhost:8080/admin and log in with the admin credentials:
    - Username: admin
@@ -48,6 +48,7 @@ docker compose -f keycloak.yaml up
    ```
    http://127.0.0.1:[port]/ and http://::1:[port]/, and http://localhost:[port]/
    ```
+   This seems to require a concrete port (range) to work. At least on Keycloak.
 
   
 ## Notes
