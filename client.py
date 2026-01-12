@@ -116,22 +116,7 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
     """Handler for the OAuth HTTP server."""
 
     def do_GET(self) -> None:
-        html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="color-scheme" content="dark light" />
-    <title>Authenticated</title>
-    <script type="application/javascript">
-        // window.close();
-    </script>
-</head>
-<body style="text-align: center;">
-    <h1>Success</h1>
-    <p>You can now close this window and return to Python.</p>
-</body>
-</html>
-"""
+        html = SUCCESS_HTML
         data = html.encode("utf-8")
 
         self.send_response(200)
@@ -195,6 +180,45 @@ def generate_pkce_pair(code_verifier_length: int = 128) -> tuple[str, str]:
     code_verifier = generate_code_verifier(code_verifier_length)
     code_challenge = compute_code_challenge(code_verifier)
     return code_verifier, code_challenge
+
+
+SUCCESS_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark light" />
+    <title>Authenticated</title>
+    <script type="application/javascript">
+        window.close();
+    </script>
+</head>
+<body style="text-align: center;">
+    <svg style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;"
+        xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <filter id="noiseFilter">
+                <feTurbulence
+                        type="fractalNoise"
+                        baseFrequency="0.5"
+                        numOctaves="2"
+                        stitchTiles="stitch"/>
+                <feColorMatrix type="matrix" values="
+                0 0 0 0.09 0
+                0 0 0 0.09 0
+                0 0 0 0.09 0
+                0 0 0 1 0"/>
+            </filter>
+            <pattern id="noisePattern" x="0" y="0" width="400" height="400" patternUnits="userSpaceOnUse">
+                <rect width="400" height="400" filter="url(#noiseFilter)"/>
+            </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#noisePattern)" opacity="0.1" style="mix-blend-mode: overlay;"/>
+    </svg>
+
+    <h1>Success</h1>
+    <p>You can now close this window and return to Python.</p>
+</body>
+</html>"""
 
 
 if __name__ == "__main__":
