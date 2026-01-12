@@ -54,7 +54,7 @@ def login() -> str:
         # Start a server to handle the OAuth redirect with the auth code:
         with OAuthHttpServer(("", PORT), OAuthHttpHandler) as httpd:
             # Prompt the user to log in:
-            webbrowser.open_new(auth_uri)
+            open_in_browser(auth_uri)
             httpd.handle_request()
 
         auth_code = httpd.authorization_code
@@ -130,6 +130,14 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
 
         self.server.authorization_code = qs.get("code", [None])[0]
 
+def open_in_browser(url: str):
+    try:
+        result = webbrowser.open_new_tab(url)
+    except webbrowser.Error as error:
+        error.add_note(f"Please open the following URL in your browser: {url}")
+        raise
+    if not result:
+        raise ValueError("Failed to open URL in browser")
 
 # Adapted from https://github.com/RomeoDespres/pkce
 def generate_code_verifier(length: int = 128) -> str:
