@@ -96,7 +96,7 @@ def build_login_uri(client: httpx.Client, code_challenge: str) -> str:
             "redirect_uri": REDIRECT_URI,
             # join by " " which translated to "+" when escaped:
             "scope": " ".join(SCOPES),
-            "state": "test-state",
+            "state": "test-state",  # TODO use nonce (can encode data here, but length is limited)
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",  # hard-coded in the code generator
         },
