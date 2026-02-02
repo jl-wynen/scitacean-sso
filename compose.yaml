@@ -11,34 +11,41 @@ services:
     volumes:
       - keycloak_data:/opt/keycloak/data
 
+# === Local SciCat backend from source ===
   # mongodb:
   #   image: mongo:latest
-  #   container_name: scicat_sso_mongo
+  #   volumes:
+  #     - mongodb_data:/bitnami
   #   ports:
   #     - "27017:27017"
-  #
-  # scicat:
-  #   image: ghcr.io/scicatproject/backend-next:v4.26.0
-  #   container_name: scicat_sso_scicat
+  # backend:
+  #   build:
+  #     context: ../backend
+  #     target: dev
   #   depends_on:
-  #     - keycloak
   #     - mongodb
   #   ports:
-  #     - "3000:3000"
+  #     - 3000:3000
   #   volumes:
-  #     - /home/jl/Work/cat/sso/backend/accounts.json:/home/node/app/functionalAccounts.json
+  #     - /home/jl/Work/cat/backend:/home/node/app
+  #     - /home/node/app/node_modules
+  #     - /home/node/app/dist
   #   environment:
-  #     DOI_PREFIX: DOI.SAMPLE.PREFIX
-  #     ELASTICSEARCH_ENABLED: no
-  #     HTTP_MAX_REDIRECTS: 10
-  #     HTTP_TIMEOUT: 5000  # in ms
-  #     JWT_EXPIRES_IN: 3600  # in s (expiry of token)
-  #     JWT_SECRET: a_scicat_secret
-  #     LOGBOOK_ENABLED: no
   #     MONGODB_URI: mongodb://mongodb:27017/scicat
-  #     PID_PREFIX: sso
-  #     SITE: SSO
+  #     EXPRESS_SESSION_SECRET: a_scicat_secret
+  #     JWT_SECRET: a_scicat_secret
   #     PORT: 3000
+  #     HTTP_MAX_REDIRECTS: 5
+  #     HTTP_TIMEOUT: 5000
+  #     JWT_EXPIRES_IN: 3600
+  #     SITE: SAMPLE-SITE
+  #     PID_PREFIX: PID.SAMPLE.PREFIX
+  #     DOI_PREFIX: DOI.SAMPLE.PREFIX
+  #     METADATA_KEYS_RETURN_LIMIT: 100
+  #     METADATA_PARENT_INSTANCES_RETURN_LIMIT: 100
+  #   command: /bin/sh -c "while true; do sleep 600; done"
 
 volumes:
   keycloak_data:
+  mongodb_data:
+    driver: local
