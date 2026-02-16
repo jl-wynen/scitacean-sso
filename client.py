@@ -21,7 +21,7 @@ import webbrowser
 import logging
 
 from scitacean._internal import jwt
-from scitacean import Client, Dataset
+from scitacean import Client
 from rich import print
 from rich.logging import RichHandler
 import httpx
@@ -73,13 +73,14 @@ def get_scicat_token(keycloak_token:str)->str:
 
 
 def login() -> str:
+    state = secrets.token_urlsafe()
     code_verifier, code_challenge = generate_pkce_pair()
 
     with httpx.Client(base_url=PROVIDER) as client:
-        auth_uri = build_login_uri(client, code_challenge)
+        auth_uri = build_login_uri(client, code_challenge, state=state)
 
         # Start a server to handle the OAuth redirect with the auth code:
-        with OAuthHttpServer(("", PORT), OAuthHttpHandler, timeout=30) as httpd:
+        with OAuthHttpServer(("", PORT), OAuthHttpHandler, timeout=30, state=state) as httpd:
             # Prompt the user to log in:
             open_in_browser(auth_uri)
             httpd.handle_request()
@@ -105,7 +106,7 @@ def login() -> str:
     return access_token
 
 
-def build_login_uri(client: httpx.Client, code_challenge: str) -> str:
+def build_login_uri(client: httpx.Client, code_challenge: str, state:str) -> str:
     """Build a URL to open in a browser for the user to log in."""
     url = client.build_request(
         "GET",
@@ -116,7 +117,7 @@ def build_login_uri(client: httpx.Client, code_challenge: str) -> str:
             "redirect_uri": REDIRECT_URI,
             # join by " " which translated to "+" when escaped:
             "scope": " ".join(SCOPES),
-            "state": "test-state",  # TODO use nonce (can encode data here, but length is limited)
+            "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",  # hard-coded in the code generator
         },
@@ -127,9 +128,10 @@ def build_login_uri(client: httpx.Client, code_challenge: str) -> str:
 class OAuthHttpServer(HTTPServer):
     """Server to receive the authorization code."""
 
-    def __init__(self, server_address: tuple[str, int], RequestHandlerClass: type,*, timeout:int) -> None:
+    def __init__(self, server_address: tuple[str, int], RequestHandlerClass: type,*, timeout:int,state:str) -> None:
         super().__init__(server_address, RequestHandlerClass)
         self.timeout = timeout
+        self.state = state
         self.authorization_code: str | None = None
 
     def handle_timeout(self) -> None:
@@ -141,8 +143,8 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
     """Handler for the OAuth HTTP server."""
 
     def do_GET(self) -> None:
-        html = SUCCESS_HTML
-        data = html.encode("utf-8")
+        # TODO do not show success on failure
+        data = SUCCESS_HTML.encode("utf-8")
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -154,11 +156,15 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         #   See https://developer.mozilla.org/en-US/docs/Web/API/Window/close
         self.wfile.write(data)
 
+        server: OAuthHttpServer = self.server  # type: ignore[assignment]
+
         parsed = parse.urlparse(self.path)
         qs = parse.parse_qs(parsed.query)
-        # TODO do we need to check more fields?
+        if qs.get("state", None) != [server.state]:
+            raise ValueError("Invalid state")
+        if qs.get("iss", None) != [PROVIDER]:
+            raise ValueError("Invalid issuer")
 
-        server: OAuthHttpServer = self.server  # type: ignore[assignment]
         server.authorization_code = qs.get("code", [None])[0]
 
     def log_request(self, code: int, *args, **kwargs) -> None:
