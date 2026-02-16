@@ -1,11 +1,21 @@
 # PKCE auth with Python and Keycloak
 
-## Nest steps
+## How this works and doesn't (currently)
 
-- Make keycloak setup persistent for convenience
-- Launch scicat(+mongodb) in same docker compose
-- Configure scicat to use keycloak and try to use token from ketcloak with scicat.
+The native app needs a public client (here called `pkce`) without a client secret.
+SciCat's web login needs a confidential client (here called `scicat-confidential`) with a client secret.
+The native app authenticates with `pkce` and gets a token.
+That token has `aud` (audience) set to `scicat-confidential` so that SciCat recognizes it.
+The app then sends that token to `/auth/oidc/token` to exchange it for a SciCat token.
 
+That last step fails because the token has `azp = 'pkce'` but SciCat expects `azp = 'scicat-confidential'`.
+So SciCat needs to be configured to accept tokens from `pkce` as well as from its own confidential client.
+
+### Networking
+
+The keycloak URL must match between host and container.
+To make this work, the docker-compose file adds a new 'keycloak.local' and `/etc/hosts` maps that to localhost.
+The client app and scicat both have to go through that network instead of localhost directly.
 
 ## Keycloak setup
 
@@ -28,6 +38,18 @@ docker compose -f compose.yaml up
      - Make sure the password is *not* temporary!
   3. Log in under http://localhost:8080/realms/pkce-test/account to check that the user can log in.
 
+### Confidential client
+
+1. In the [admin console](http://localhost:8080/admin), open the 'Clients' page.
+2. Create a new client with
+- General:
+  - Client type: OpenID Connect
+  - Client ID: scicat-confidential
+  - [Other fields are optional]
+- Cabability:
+  - Client authentication: On
+  - Authentication flow: Standard Flow
+
 ### PKCE client
 
 1. In the [admin console](http://localhost:8080/admin), open the 'Clients' page.
@@ -49,8 +71,17 @@ docker compose -f compose.yaml up
    http://127.0.0.1:[port]/ and http://::1:[port]/, and http://localhost:[port]/
    ```
    This seems to require a concrete port (range) to work. At least on Keycloak.
+4. Under 'Client scopes', add the predefined 'pkce-dedicated' scope.
+   (See https://www.keycloak.org/docs/latest/server_admin/#_audience_hardcoded)
+   - In that scope, add a new mapper:
+    - Type: Audience
+    - Name: SciCat backend
+    - Included Client Audience: scicat-confidential
 
-  
+### Networking
+
+Add `127.0.0.1 keycloak.local` to `/etc/hosts`.
+
 ## Notes
 
 - Keycloak auth endpoints are listed at http://localhost:8080/realms/pkce-test/.well-known/openid-configuration

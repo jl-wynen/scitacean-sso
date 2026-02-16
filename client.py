@@ -26,7 +26,8 @@ from rich.logging import RichHandler
 import httpx
 
 # Configured in Keycloak:
-PROVIDER = "http://localhost:8080/realms/pkce-test"
+PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
+# PROVIDER = "http://localhost:8080/realms/pkce-test"
 CLIENT_ID = "pkce"
 USERNAME = "python"
 PASSWORD = "pixie"
@@ -39,6 +40,8 @@ TOKEN_URI = "protocol/openid-connect/token"
 PORT = 8081
 REDIRECT_URI = f"http://localhost:{PORT}"
 
+SCICAT_URL = "http://localhost:3000/api/v3"
+
 
 def main():
     logging.basicConfig(
@@ -47,9 +50,19 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler()],
     )
-    token = login()
-    print(token)
-    print(jwt.decode(token))
+    keycloak_token = login()
+    print("=== Keycloak ===")
+    print(jwt.decode(keycloak_token))
+
+    scicat_token = get_scicat_token(keycloak_token)
+    print("=== SciCat ===")
+    print(scicat_token)
+    # print(jwt.decode(scicat_token))
+
+def get_scicat_token(keycloak_token:str)->str:
+    response = httpx.post(f"{SCICAT_URL}/auth/oidc/token", json={"idToken": keycloak_token})
+    response.raise_for_status()
+    return response.json()
 
 
 def login() -> str:
