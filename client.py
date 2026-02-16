@@ -7,7 +7,7 @@
 # ]
 # ///
 """
-Based on
+PKCE impl Based on
 https://www.camiloterevinto.com/post/oauth-pkce-flow-from-python-desktop
 https://www.stefaanlippens.net/oauth-code-flow-pkce.html
 """
@@ -79,7 +79,7 @@ def login() -> str:
         auth_uri = build_login_uri(client, code_challenge)
 
         # Start a server to handle the OAuth redirect with the auth code:
-        with OAuthHttpServer(("", PORT), OAuthHttpHandler) as httpd:
+        with OAuthHttpServer(("", PORT), OAuthHttpHandler, timeout=30) as httpd:
             # Prompt the user to log in:
             open_in_browser(auth_uri)
             httpd.handle_request()
@@ -127,9 +127,14 @@ def build_login_uri(client: httpx.Client, code_challenge: str) -> str:
 class OAuthHttpServer(HTTPServer):
     """Server to receive the authorization code."""
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.authorization_code = None
+    def __init__(self, server_address: tuple[str, int], RequestHandlerClass: type,*, timeout:int) -> None:
+        super().__init__(server_address, RequestHandlerClass)
+        self.timeout = timeout
+        self.authorization_code: str | None = None
+
+    def handle_timeout(self) -> None:
+        super().handle_timeout()
+        raise TimeoutError(f"OAuth server did not receive an authorization code after {self.timeout} seconds")
 
 
 class OAuthHttpHandler(BaseHTTPRequestHandler):
@@ -153,7 +158,8 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         qs = parse.parse_qs(parsed.query)
         # TODO do we need to check more fields?
 
-        self.server.authorization_code = qs.get("code", [None])[0]
+        server: OAuthHttpServer = self.server  # type: ignore[assignment]
+        server.authorization_code = qs.get("code", [None])[0]
 
     def log_request(self, code: int, *args, **kwargs) -> None:
         # `self.path` contains the auth token, so only show basics about the request
