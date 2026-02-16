@@ -5,11 +5,9 @@
 The native app needs a public client (here called `pkce`) without a client secret.
 SciCat's web login needs a confidential client (here called `scicat-confidential`) with a client secret.
 The native app authenticates with `pkce` and gets a token.
-That token has `aud` (audience) set to `scicat-confidential` so that SciCat recognizes it.
-The app then sends that token to `/auth/oidc/token` to exchange it for a SciCat token.
-
-That last step fails because the token has `azp = 'pkce'` but SciCat expects `azp = 'scicat-confidential'`.
-So SciCat needs to be configured to accept tokens from `pkce` as well as from its own confidential client.
+With the extra config, the token includes the client id as its audience (`aud = 'pkce'`).
+SciCat then checks the token using a client that is also configured to use `client_id="pkce"` which maps onto the `azp` claim of the token. (This is currently not in the repo, I had to locally modify the code and hard-coded that client id.)
+This setup seems to work :-)
 
 ### Networking
 
@@ -76,7 +74,7 @@ docker compose -f compose.yaml up
    - In that scope, add a new mapper:
     - Type: Audience
     - Name: SciCat backend
-    - Included Client Audience: scicat-confidential
+    - Included Client Audience: pkce
 
 ### Networking
 

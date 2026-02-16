@@ -3,7 +3,7 @@
 # dependencies = [
 #   "httpx",
 #   "rich",
-#   "scitacean",
+#   "scitacean>=26",
 # ]
 # ///
 """
@@ -21,6 +21,7 @@ import webbrowser
 import logging
 
 from scitacean._internal import jwt
+from scitacean import Client, Dataset
 from rich import print
 from rich.logging import RichHandler
 import httpx
@@ -56,13 +57,19 @@ def main():
 
     scicat_token = get_scicat_token(keycloak_token)
     print("=== SciCat ===")
-    print(scicat_token)
-    # print(jwt.decode(scicat_token))
+    print(jwt.decode(scicat_token))
+
+    client = Client.from_token(url=SCICAT_URL, token=scicat_token)
+    identity = client.scicat.call_endpoint(
+        cmd="GET", url="users/my/identity", operation="get_user_info"
+    )
+    print(identity)
+
 
 def get_scicat_token(keycloak_token:str)->str:
     response = httpx.post(f"{SCICAT_URL}/auth/oidc/token", json={"idToken": keycloak_token})
     response.raise_for_status()
-    return response.json()
+    return response.json()['access_token']
 
 
 def login() -> str:
