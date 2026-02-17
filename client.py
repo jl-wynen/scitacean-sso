@@ -66,10 +66,12 @@ def main():
     # print(identity)
 
 
-def get_scicat_token(keycloak_token:str)->str:
-    response = httpx.post(f"{SCICAT_URL}/auth/oidc/token", json={"idToken": keycloak_token})
+def get_scicat_token(keycloak_token: str) -> str:
+    response = httpx.post(
+        f"{SCICAT_URL}/auth/oidc/token", json={"idToken": keycloak_token}
+    )
     response.raise_for_status()
-    return response.json()['access_token']
+    return response.json()["access_token"]
 
 
 def login() -> str:
@@ -80,7 +82,9 @@ def login() -> str:
         auth_uri = build_login_uri(client, code_challenge, state=state)
 
         # Start a server to handle the OAuth redirect with the auth code:
-        with launch_auth_server(port=PORT, timeout=30, issuer=PROVIDER, state=state) as server:
+        with launch_auth_server(
+            port=PORT, timeout=30, issuer=PROVIDER, state=state
+        ) as server:
             # Prompt the user to log in:
             open_in_browser(auth_uri)
             server.handle_request()
@@ -106,7 +110,7 @@ def login() -> str:
     return access_token
 
 
-def build_login_uri(client: httpx.Client, code_challenge: str, state:str) -> str:
+def build_login_uri(client: httpx.Client, code_challenge: str, state: str) -> str:
     """Build a URL to open in a browser for the user to log in."""
     url = client.build_request(
         "GET",

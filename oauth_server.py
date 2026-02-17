@@ -11,15 +11,27 @@ from string import Template
 
 
 @contextmanager
-def launch_auth_server(*,port:int, timeout:int, state:str, issuer:str)->Generator[OAuthHttpServer, None,None]:
-    with OAuthHttpServer(("", port), OAuthHttpHandler, timeout=timeout, state=state, issuer=issuer) as server:
+def launch_auth_server(
+    *, port: int, timeout: int, state: str, issuer: str
+) -> Generator[OAuthHttpServer, None, None]:
+    with OAuthHttpServer(
+        ("", port), OAuthHttpHandler, timeout=timeout, state=state, issuer=issuer
+    ) as server:
         yield server
 
 
 class OAuthHttpServer(HTTPServer):
     """Server to receive the authorization code."""
 
-    def __init__(self, server_address: tuple[str, int], RequestHandlerClass: type,*, timeout:int,state:str, issuer:str) -> None:
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        RequestHandlerClass: type,
+        *,
+        timeout: int,
+        state: str,
+        issuer: str,
+    ) -> None:
         super().__init__(server_address, RequestHandlerClass)
         self.timeout = timeout
         self.state = state
@@ -32,7 +44,8 @@ class OAuthHttpServer(HTTPServer):
             "The OAuth server did not receive an authorization code after "
             f"{self.timeout} seconds. This means either that nobody logged "
             "in successfully in that time or that the identity provider did "
-            "not redirect or did not redirect correctly.")
+            "not redirect or did not redirect correctly."
+        )
 
 
 class OAuthHttpHandler(BaseHTTPRequestHandler):
@@ -53,7 +66,7 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         server.authorization_code = qs.get("code", [None])[0]
         self._send_result_page(success=True)
 
-    def _send_result_page(self,*,success:bool)->None:
+    def _send_result_page(self, *, success: bool) -> None:
         if success:
             text = _success_page()
         else:
@@ -69,8 +82,6 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         #   and scripts are not allowed to close the window in that case.
         #   See https://developer.mozilla.org/en-US/docs/Web/API/Window/close
         self.wfile.write(data)
-
-
 
     def log_request(self, code: int, *args, **kwargs) -> None:
         # `self.path` contains the auth token, so only show basics about the request
@@ -98,8 +109,10 @@ def _failure_page() -> str:
     base = _base_html()
     return base.substitute(content=content, title="Login failed")
 
+
 def _base_html() -> Template:
     return Template(_html_asset("base"))
+
 
 @cache
 def _html_asset(name: str) -> str:
