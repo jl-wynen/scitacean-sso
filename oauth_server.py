@@ -5,6 +5,10 @@ from contextlib import contextmanager
 import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib import parse
+from pathlib import Path
+from functools import cache
+from string import Template
+
 
 @contextmanager
 def launch_auth_server(*,port:int, timeout:int, state:str, issuer:str)->Generator[OAuthHttpServer, None,None]:
@@ -35,8 +39,26 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
     """Handler for the OAuth HTTP server."""
 
     def do_GET(self) -> None:
-        # TODO do not show success on failure
-        data = SUCCESS_HTML.encode("utf-8")
+        server: OAuthHttpServer = self.server  # type: ignore[assignment]
+
+        parsed = parse.urlparse(self.path)
+        qs = parse.parse_qs(parsed.query)
+        if qs.get("state", None) != [server.state]:
+            self._send_result_page(success=False)
+            raise ValueError("Invalid state")
+        if qs.get("iss", None) != [server.issuer]:
+            self._send_result_page(success=False)
+            raise ValueError("Invalid issuer")
+
+        server.authorization_code = qs.get("code", [None])[0]
+        self._send_result_page(success=False)
+
+    def _send_result_page(self,*,success:bool)->None:
+        if success:
+            text = _success_page()
+        else:
+            text = _failure_page()
+        data = text.encode("utf-8")
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -48,16 +70,7 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         #   See https://developer.mozilla.org/en-US/docs/Web/API/Window/close
         self.wfile.write(data)
 
-        server: OAuthHttpServer = self.server  # type: ignore[assignment]
 
-        parsed = parse.urlparse(self.path)
-        qs = parse.parse_qs(parsed.query)
-        if qs.get("state", None) != [server.state]:
-            raise ValueError("Invalid state")
-        if qs.get("iss", None) != [server.issuer]:
-            raise ValueError("Invalid issuer")
-
-        server.authorization_code = qs.get("code", [None])[0]
 
     def log_request(self, code: int, *args, **kwargs) -> None:
         # `self.path` contains the auth token, so only show basics about the request
@@ -74,40 +87,21 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         logging.getLogger("OAuth-server").info("Received message")
 
 
-SUCCESS_HTML = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="color-scheme" content="dark light" />
-    <title>Authenticated</title>
-    <script type="application/javascript">
-        window.close();
-    </script>
-</head>
-<body style="text-align: center;">
-    <svg style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;"
-        xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <filter id="noiseFilter">
-                <feTurbulence
-                        type="fractalNoise"
-                        baseFrequency="0.5"
-                        numOctaves="2"
-                        stitchTiles="stitch"/>
-                <feColorMatrix type="matrix" values="
-                0 0 0 0.09 0
-                0 0 0 0.09 0
-                0 0 0 0.09 0
-                0 0 0 1 0"/>
-            </filter>
-            <pattern id="noisePattern" x="0" y="0" width="400" height="400" patternUnits="userSpaceOnUse">
-                <rect width="400" height="400" filter="url(#noiseFilter)"/>
-            </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#noisePattern)" opacity="0.1" style="mix-blend-mode: overlay;"/>
-    </svg>
+def _success_page() -> str:
+    content = _html_asset("success")
+    base = _base_html()
+    return base.substitute(content=content)
 
-    <h1>Success</h1>
-    <p>You can now close this window and return to Python.</p>
-</body>
-</html>"""
+
+def _failure_page() -> str:
+    content = _html_asset("failure")
+    base = _base_html()
+    return base.substitute(content=content)
+
+def _base_html() -> Template:
+    return Template(_html_asset("base"))
+
+@cache
+def _html_asset(name: str) -> str:
+    with open((Path(__file__).parent / "assets" / name).with_suffix(".html"), "r") as f:
+        return f.read()
