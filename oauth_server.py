@@ -51,7 +51,7 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
             raise ValueError("Invalid issuer")
 
         server.authorization_code = qs.get("code", [None])[0]
-        self._send_result_page(success=False)
+        self._send_result_page(success=True)
 
     def _send_result_page(self,*,success:bool)->None:
         if success:
@@ -90,13 +90,13 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
 def _success_page() -> str:
     content = _html_asset("success")
     base = _base_html()
-    return base.substitute(content=content)
+    return base.substitute(content=content, title="Authenticated")
 
 
 def _failure_page() -> str:
     content = _html_asset("failure")
     base = _base_html()
-    return base.substitute(content=content)
+    return base.substitute(content=content, title="Login failed")
 
 def _base_html() -> Template:
     return Template(_html_asset("base"))
