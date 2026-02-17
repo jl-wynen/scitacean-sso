@@ -1,6 +1,6 @@
 # PKCE auth with Python and Keycloak
 
-## How this works and doesn't (currently)
+## Standard flow
 
 The native app needs a public client (here called `pkce`) without a client secret.
 SciCat's web login needs a confidential client (here called `scicat-confidential`) with a client secret.
@@ -9,7 +9,21 @@ With the extra config, the token includes the client id as its audience (`aud = 
 SciCat then checks the token using a client that is also configured to use `client_id="pkce"` which maps onto the `azp` claim of the token. (This is currently not in the repo, I had to locally modify the code and hard-coded that client id.)
 This setup seems to work :-)
 
-### Networking
+## Device flow
+
+The standard flow with a local redirect does not work on Jupyter Hub because the `localhost` used by the browser is not the same as the one used by the Python kernel.
+Plus, `webbrowser` cannot open tabs in this case.
+The device flow is a little less user friendly but should work in that setup.
+
+The native app requests a device code from the IdP and tells the user to open a URL and it provides a code to the user to enter in that URL (or encodes the code in the URL directly).
+Meanwhile, the app repeatedly queries the IdP while login is pending.
+Once the user authorizes the app, the app receives an access token.
+
+For testing purposes, there is a dedicated client for the device flow so we can neatly separate the two flows.
+But that is not required in production, we just need a public client with the correct flows.
+All the same audience and issuer requirements apply.
+
+## Networking
 
 The keycloak URL must match between host and container.
 To make this work, the docker-compose file adds a new 'keycloak.local' and `/etc/hosts` maps that to localhost.
@@ -75,6 +89,27 @@ docker compose -f compose.yaml up
     - Type: Audience
     - Name: SciCat backend
     - Included Client Audience: pkce
+
+### Device client
+
+1. In the [admin console](http://localhost:8080/admin), open the 'Clients' page.
+2. Create a new client with
+  - General:
+    - Client type: OpenID Connect
+    - Client ID: device
+    - [Other fields are optional]
+  - Cabability:
+    - Client authentication: Off
+    - Authentication flow: OAuth 2.0 Device Authorization Grant
+    - PKCE method: Leave blank (The client will send the code challenge and exchange method)
+  - Login settings:
+    - Leave blank
+4. Under 'Client scopes', add the predefined 'device-dedicated' scope.
+   (See https://www.keycloak.org/docs/latest/server_admin/#_audience_hardcoded)
+   - In that scope, add a new mapper:
+    - Type: Audience
+    - Name: SciCat backend
+    - Included Client Audience: device
 
 ### Networking
 
