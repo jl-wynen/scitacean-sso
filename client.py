@@ -55,15 +55,15 @@ def main():
     print("=== Keycloak ===")
     print(jwt.decode(keycloak_token))
 
-    # scicat_token = get_scicat_token(keycloak_token)
-    # print("=== SciCat ===")
-    # print(jwt.decode(scicat_token))
+    scicat_token = get_scicat_token(keycloak_token)
+    print("=== SciCat ===")
+    print(jwt.decode(scicat_token))
 
-    # client = Client.from_token(url=SCICAT_URL, token=scicat_token)
-    # identity = client.scicat.call_endpoint(
-    #     cmd="GET", url="users/my/identity", operation="get_user_info"
-    # )
-    # print(identity)
+    client = Client.from_token(url=SCICAT_URL, token=scicat_token)
+    identity = client.scicat.call_endpoint(
+        cmd="GET", url="users/my/identity", operation="get_user_info"
+    )
+    print(identity)
 
 
 def get_scicat_token(keycloak_token: str) -> str:
