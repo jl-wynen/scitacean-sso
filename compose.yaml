@@ -56,7 +56,9 @@ services:
       OIDC_SCOPE: 'openid profile email'
       OIDC_SUCCESS_URL: "http://keycloak.local:4200/auth-callback"
       OIDC_ACCESS_GROUPS: "accessgroups"
-    command: /bin/sh -c "while true; do sleep 600; done"
+      OIDC_ADDITIONAL_AUTHORIZED_PARTIES: "pkce"
+    # command: /bin/sh -c "while true; do sleep 600; done"
+    command: npm run start:dev
 
 volumes:
   keycloak_data:
