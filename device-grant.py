@@ -7,9 +7,6 @@
 # ]
 # ///
 
-import secrets
-import hashlib
-import base64
 import webbrowser
 import logging
 import time
@@ -23,8 +20,8 @@ import httpx
 from pkce import generate_pkce_pair
 
 # Configured in Keycloak:
-# PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
-PROVIDER = "http://localhost:8080/realms/pkce-test"
+PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
+# PROVIDER = "http://localhost:8080/realms/pkce-test"
 CLIENT_ID = "device"
 USERNAME = "python"
 PASSWORD = "pixie"
@@ -86,9 +83,11 @@ def token_with_device_flow() -> str:
     verification_uri = (
         initial_data["verification_uri"] + "?user_code=" + initial_data["user_code"]
     )
-    print(f"""vvv OPEN URL: VVV
-    {verification_uri}
-^^^^^^^^^^^^^^^^^""")
+    # print(f"""
+# vvv OPEN URL: vvv
+    # {verification_uri}
+# ^^^^^^^^^^^^^^^^^""")
+    open_in_browser(verification_uri)
 
     for _ in range(30):
         r = httpx.post(
@@ -109,6 +108,15 @@ def token_with_device_flow() -> str:
         time.sleep(initial_data["interval"])
 
     raise RuntimeError("Did not authenticate within timeout")
+
+def open_in_browser(url: str):
+    try:
+        result = webbrowser.open_new_tab(url)
+    except webbrowser.Error as error:
+        error.add_note(f"Please open the following URL in your browser: {url}")
+        raise
+    if not result:
+        raise ValueError("Failed to open URL in browser")
 
 
 if __name__ == "__main__":
