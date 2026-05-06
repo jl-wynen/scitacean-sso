@@ -102,6 +102,8 @@ def token_with_device_flow() -> str:
         print(f"Got {r} {r.text}")
         if r.is_success:
             return r.json()["access_token"]
+        # With the DMSC keycloak, this returns a HTML page with a nondescript error message
+        # instead of JSON. But checking only for code=400 and looping works fine.
         if r.status_code != 400 or r.json().get("error") != "authorization_pending":
             raise RuntimeError(f"Bad reply: {r} {r.text}")
 
