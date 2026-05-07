@@ -6,8 +6,8 @@ The native app needs a public client (here called `pkce`) without a client secre
 SciCat's web login needs a confidential client (here called `scicat-confidential`) with a client secret.
 The native app authenticates with `pkce` and gets a token.
 With the extra config, the token includes the client id as its audience (`aud = 'pkce'`).
-SciCat then checks the token using a client that is also configured to use `client_id="pkce"` which maps onto the `azp` claim of the token. (This is currently not in the repo, I had to locally modify the code and hard-coded that client id.)
-This setup seems to work :-)
+SciCat then checks the token using its own client which is configured to allow additional parties, in this case `pkce`.
+It checks the `aud` field of the token which contains `'pkce'`, matching the SciCat configuration and so it generates a token.
 
 ## Device flow
 
