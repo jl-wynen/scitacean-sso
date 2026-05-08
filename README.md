@@ -56,19 +56,19 @@ docker compose -f compose.yaml up
 2. Create a new client with
 - General:
   - Client type: OpenID Connect
-  - Client ID: scicat-confidential
+  - Client ID: scicat
   - [Other fields are optional]
 - Cabability:
   - Client authentication: On
   - Authentication flow: Standard Flow
 
-### PKCE client
+### Normal flow PKCE client
 
 1. In the [admin console](http://localhost:8080/admin), open the 'Clients' page.
 2. Create a new client with
   - General:
     - Client type: OpenID Connect
-    - Client ID: pkce
+    - Client ID: scicat-native-normal
     - [Other fields are optional]
   - Cabability:
     - Client authentication: Off
@@ -88,7 +88,7 @@ docker compose -f compose.yaml up
    - In that scope, add a new mapper:
     - Type: Audience
     - Name: SciCat backend
-    - Included Client Audience: pkce
+    - Included Client Audience: scicat
 
 ### Device client
 
@@ -96,7 +96,7 @@ docker compose -f compose.yaml up
 2. Create a new client with
   - General:
     - Client type: OpenID Connect
-    - Client ID: device
+    - Client ID: scicat-native-device
     - [Other fields are optional]
   - Cabability:
     - Client authentication: Off
@@ -109,7 +109,7 @@ docker compose -f compose.yaml up
    - In that scope, add a new mapper:
     - Type: Audience
     - Name: SciCat backend
-    - Included Client Audience: device
+    - Included Client Audience: scicat
 
 ### Networking
 

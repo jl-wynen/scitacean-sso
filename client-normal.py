@@ -26,9 +26,9 @@ from oauth_server import launch_auth_server
 from pkce import generate_pkce_pair
 
 # Configured in Keycloak:
-# PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
-PROVIDER = "http://localhost:8080/realms/pkce-test"
-CLIENT_ID = "pkce"
+PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
+# PROVIDER = "http://localhost:8080/realms/pkce-test"
+CLIENT_ID = "scicat-native-normal"
 USERNAME = "python"
 PASSWORD = "pixie"
 SCOPES = ["openid", "profile"]

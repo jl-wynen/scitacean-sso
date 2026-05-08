@@ -18,8 +18,10 @@ services:
 # === Local SciCat backend from source ===
   mongodb:
     image: mongo:latest
+    ports:
+          - "27017:27017"
     volumes:
-      - "mongodb_data:/data/db"
+      - "mongodb_data:/bitnami"
   backend:
     build:
       context: ../backend
@@ -49,13 +51,13 @@ services:
       # Configure to use keycloak:
       OIDC_ISSUER: "http://keycloak.local:8080/realms/pkce-test"
       OIDC_AUTHORIZATION_URL: "http://keycloak.local:8080/realms/pkce-test"
-      OIDC_CLIENT_ID: "scicat-confidential"
-      OIDC_CLIENT_SECRET: "eeZfjdFtIxU7JyFGCgddirZtPP6b9AFX"
+      OIDC_CLIENT_ID: "scicat"
+      OIDC_CLIENT_SECRET: "6kbFdrrHJsMZtI09iFRnR1kgphOyZONh"
       OIDC_CALLBACK_URL: "http://keycloak.local:3000/api/v3/auth/oidc/callback"
       OIDC_SCOPE: 'openid profile email'
       OIDC_SUCCESS_URL: "http://keycloak.local:4200/auth-callback"
       OIDC_ACCESS_GROUPS: "accessgroups"
-      OIDC_ADDITIONAL_AUTHORIZED_PARTIES: "pkce"
+      OIDC_ADDITIONAL_AUTHORIZED_PARTIES: "scicat-native-normal"
     # command: /bin/sh -c "while true; do sleep 600; done"
     command: npm run start:dev
 
