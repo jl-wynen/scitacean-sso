@@ -20,11 +20,11 @@ import httpx
 from pkce import generate_pkce_pair
 
 # Configured in Keycloak:
-PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
-# PROVIDER = "http://localhost:8080/realms/pkce-test"
-CLIENT_ID = "device"
-USERNAME = "python"
-PASSWORD = "pixie"
+# PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
+PROVIDER = "http://localhost:8080/realms/pkce-test"
+CLIENT_ID = "scicat-native-device"
+# USERNAME = "python"
+# PASSWORD = "pixie"
 SCOPES = ["openid", "profile"]
 
 # Relative to `PROVIDER`
@@ -45,6 +45,7 @@ def main():
     keycloak_token = token_with_device_flow()
     print("=== Keycloak ===")
     print(jwt.decode(keycloak_token))
+    return
 
     scicat_token = get_scicat_token(keycloak_token)
     print("=== SciCat ===")
