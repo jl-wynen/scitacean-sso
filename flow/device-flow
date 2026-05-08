@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+
+    box rgb(20,24,30) User Machine
+        participant app as App
+        participant browser as Browser<br>(User Agent)
+    end
+    box rgb(20,24,30) ESS
+        participant idp as IdP
+        participant backend as SciCat BE
+    end
+
+    rect rgb(118,51,51)
+    note right of app: OAuth 2.0 Device flow w/ PKCE
+    app->>app: PKCE: gen challenge + verifier
+    app->>idp:Start device flow w/ PKCE challenge
+    idp->>app:Verification URL<br>Device code<br>User code
+    app->>browser:Open verification URL w/ user code
+    loop Until success or timeout
+        app->>idp:Request token w/ device code + PKCE verifier
+        idp->>app:Return 400 (pending)
+    end
+    idp->>app:Return access token
+    end
+
+   rect rgb(44,102,118)
+   note right of app: Exchange for SciCat token
+   app->>backend:Request SciCat JWT w/ IdP access token
+   backend->>backend:Verify access token<br>using IdP pub key
+   backend->>backend:Create SciCat JWT
+   backend->>app:Return SciCat JWT
+   end

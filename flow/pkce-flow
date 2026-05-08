@@ -1,0 +1,39 @@
+% https://mermaid.live/edit#pako:eNqNVO9vmzAQ_Vcsf2pVmgGBDNAUKc2qqduqVs26SVO-GLgQK4nNjGmbVf3fd-ZHQlgyDfHB2O_u3r175pUmMgUa0QJ-lSAS-MhZpthmLgg-rNRSlJsY1FzUO7F8ISqLz1zbcj1raJ-TxwIUuWXJkguoMebJmdI84TkTmiRsvY5ZsiKsINNmfRzJ8tyAJnl-_DxW8tmUQ8xVvfwQq_FZRWGSgdDndRyI9BTd69nseG6eVrVv0vsTtZE15jWYWcKnTJOr6061eqkg0VVBxwks38G3YSSkBqJ4ttRELkyfEbmblHpJ3IFNnt-R-y_TJhueXY7HFeITCJIsUTEQGZAL8gSKL7gZRgu8HF-06kZ3OYhuikasap88Pnw1ZbrZFKTc8G2UqtEYh0JED8YNhSZrmXHx70CEN0EzLRXskd3jlkubN8EcOC7O1gWRihRQFFwKouWq7eGQz6zM8_X2P8L65XSpxI4wcmdGc2P5fpWdjA8tGLvuoStdd8C63R6kPcXJXJoZTtey6EYfqFvxPqjz15DrfkympheWJNh1t-W9_Xbu8zzLsV0LTVjb74j7rl9wUGaeCxSyMfQ-aeOg2vI7vg3s849vhvSNuTB9Nk1IJ_i76Wd7gDSXtiy4yKoceRmTFWxPhE8VMCS_L93DdaTpYSpdqEUzxVMaaVWCRTegNsx80leDmVO9hA3MaYTLlKnVnM7FG8bgjf8p5aYNU7LMljRaoO_wq8xTpNT8KHe7CuuBmspSaBo5QRBUWWj0Sl9o5I7CQej6jh0Go6EbOK5v0S2N_NFg6Ns27tijYTjyAu_Nor-rwvYgeO-FYeh7vuMH4dAdWhSdiZ67rX_Y1X_77Q9Lgd6l
+
+sequenceDiagram
+    autonumber
+
+    box rgb(20,24,30) User Machine
+        participant callback as Callback
+        participant app as App
+        participant browser as Browser<br>(User Agent)
+    end
+    box rgb(20,24,30) ESS
+        participant idp as IdP
+        participant backend as SciCat BE
+    end
+
+    rect rgb(118,51,51)
+    note right of app: OAuth 2.0 w/ PKCE
+    app->>app: Gen challenge + verifier
+    app-->+callback:Open
+    app->>browser:Open URL w/ challenge + redirect
+    browser->>idp:Request login w/ challenge + redirect
+    idp->>idp:Store challenge
+    idp->>browser:Request credentials or session token
+    browser->>idp:Supply credentials or session token
+    idp->>browser:Return redirect + auth code
+    browser->>callback:Redirect w/ auth code
+    app->callback:Store auth code
+    callback-->-app:Close
+    app->>idp:Request token w/ auth code + verifier
+    idp->>app:Return access token
+    end
+
+   rect rgb(44,102,118)
+   note right of app: Exchange for SciCat token
+   app->>backend:Request SciCat JWT w/ Idp access token
+   backend->>backend:Verify access token<br>using Idp pub key
+   backend->>backend:Create SciCat JWT
+   backend->>app:Return SciCat JWT
+   end
