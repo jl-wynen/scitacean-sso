@@ -30,6 +30,7 @@ services:
       - 3000:3000
     volumes:
       - /home/jl/Work/cat/backend:/home/node/app
+      - /home/jl/Work/cat/backend/test/config/functionalAccounts.json:/home/node/app/functionalAccounts.json
       - /home/node/app/node_modules
       - /home/node/app/dist
     environment:
