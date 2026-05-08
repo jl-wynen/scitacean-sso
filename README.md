@@ -2,12 +2,11 @@
 
 ## Standard flow
 
-The native app needs a public client (here called `pkce`) without a client secret.
-SciCat's web login needs a confidential client (here called `scicat-confidential`) with a client secret.
-The native app authenticates with `pkce` and gets a token.
-With the extra config, the token includes the client id as its audience (`aud = 'pkce'`).
-SciCat then checks the token using its own client which is configured to allow additional parties, in this case `pkce`.
-It checks the `aud` field of the token which contains `'pkce'`, matching the SciCat configuration and so it generates a token.
+The native app needs a public client (here called `scicat-native-normal`) without a client secret.
+SciCat's web login needs a confidential client (here called `scicat`) with a client secret.
+The native app authenticates with `scicat-native-normal` and gets a token.
+With the extra config, the token includes the confidential client id as its audience (`aud = 'scicat'`).
+SciCat then checks the token using its own client which is configured to allow additional parties, in this case `scicat-native-normal`, i.e., it allows tokens with `azp = 'scicat-native-normal'` and `aud = ['scicat', ...]`. 
 
 ## Device flow
 
@@ -22,6 +21,8 @@ Once the user authorizes the app, the app receives an access token.
 For testing purposes, there is a dedicated client for the device flow so we can neatly separate the two flows.
 But that is not required in production, we just need a public client with the correct flows.
 All the same audience and issuer requirements apply.
+
+This flow requires the same SciCat config as the standard flow.
 
 ## Networking
 
