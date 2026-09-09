@@ -57,7 +57,7 @@ services:
       OIDC_SCOPE: 'openid profile email'
       OIDC_SUCCESS_URL: "http://keycloak.local:4200/auth-callback"
       OIDC_ACCESS_GROUPS: "accessgroups"
-      OIDC_ADDITIONAL_AUTHORIZED_PARTIES: "scicat-native-normal"
+      OIDC_ADDITIONAL_AUTHORIZED_PARTIES: "scicat-native-normal,scicat-native-device"
     # command: /bin/sh -c "while true; do sleep 600; done"
     command: npm run start:dev
 
