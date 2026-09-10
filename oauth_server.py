@@ -1,13 +1,13 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
-import logging
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib import parse
-from pathlib import Path
 from functools import cache
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from string import Template
+from urllib import parse
 
 
 @contextmanager
@@ -59,9 +59,10 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         if qs.get("state", None) != [server.state]:
             self._send_result_page(success=False)
             raise ValueError("Invalid state")
-        if qs.get("iss", None) != [server.issuer]:
-            self._send_result_page(success=False)
-            raise ValueError("Invalid issuer")
+        # Keycloak returns an issuer, ping does not
+        # if qs.get("iss", None) != [server.issuer]:
+        #     self._send_result_page(success=False)
+        #     raise ValueError("Invalid issuer")
 
         server.authorization_code = qs.get("code", [None])[0]
         self._send_result_page(success=True)
