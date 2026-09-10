@@ -7,15 +7,15 @@
 # ]
 # ///
 
-import webbrowser
 import logging
 import time
+import webbrowser
 
-from scitacean._internal import jwt
-from scitacean import Client
+import httpx
 from rich import print
 from rich.logging import RichHandler
-import httpx
+from scitacean import Client
+from scitacean._internal import jwt
 
 from pkce import generate_pkce_pair
 
@@ -28,10 +28,16 @@ CLIENT_ID = "scicat-native-device"
 SCOPES = ["openid", "profile"]
 
 # Relative to `PROVIDER`
-AUTH_URI = "protocol/openid-connect/auth"
+AUTH_URI = "protocol/openid-connect/auth/device"
 TOKEN_URI = "protocol/openid-connect/token"
 
 SCICAT_URL = "http://localhost:3000/api/v3"
+
+PROVIDER = "https://authentication.test.ess.eu:9031"
+CLIENT_ID = "scitacean"
+AUTH_URI = "as/device_authz.oauth2"
+TOKEN_URI = "as/token.oauth2"
+DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 
 
 def main():
@@ -70,7 +76,7 @@ def token_with_device_flow() -> str:
     code_verifier, code_challenge = generate_pkce_pair()
 
     r = httpx.post(
-        f"{PROVIDER}/{AUTH_URI}/device",
+        f"{PROVIDER}/{AUTH_URI}",
         data={
             "client_id": CLIENT_ID,
             "scope": "openid",
@@ -85,9 +91,9 @@ def token_with_device_flow() -> str:
         initial_data["verification_uri"] + "?user_code=" + initial_data["user_code"]
     )
     # print(f"""
-# vvv OPEN URL: vvv
+    # vvv OPEN URL: vvv
     # {verification_uri}
-# ^^^^^^^^^^^^^^^^^""")
+    # ^^^^^^^^^^^^^^^^^""")
     open_in_browser(verification_uri)
 
     for _ in range(30):
@@ -95,7 +101,7 @@ def token_with_device_flow() -> str:
             f"{PROVIDER}/{TOKEN_URI}",
             data={
                 "client_id": CLIENT_ID,
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "grant_type": DEVICE_GRANT_TYPE,
                 "device_code": initial_data["device_code"],
                 "code_verifier": code_verifier,
             },
@@ -111,6 +117,7 @@ def token_with_device_flow() -> str:
         time.sleep(initial_data["interval"])
 
     raise RuntimeError("Did not authenticate within timeout")
+
 
 def open_in_browser(url: str):
     try:

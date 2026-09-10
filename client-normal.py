@@ -12,15 +12,15 @@ https://www.camiloterevinto.com/post/oauth-pkce-flow-from-python-desktop
 https://www.stefaanlippens.net/oauth-code-flow-pkce.html
 """
 
+import logging
 import secrets
 import webbrowser
-import logging
 
-from scitacean._internal import jwt
-from scitacean import Client
+import httpx
 from rich import print
 from rich.logging import RichHandler
-import httpx
+from scitacean import Client
+from scitacean._internal import jwt
 
 from oauth_server import launch_auth_server
 from pkce import generate_pkce_pair
@@ -41,6 +41,12 @@ PORT = 8081
 REDIRECT_URI = f"http://localhost:{PORT}"
 
 SCICAT_URL = "http://localhost:3000/api/v3"
+
+
+PROVIDER = "https://authentication.test.ess.eu:9031"
+CLIENT_ID = "scitacean"
+AUTH_URI = "as/authorization.oauth2"
+TOKEN_URI = "as/token.oauth2"
 
 
 def main():
