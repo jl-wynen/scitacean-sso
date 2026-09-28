@@ -33,11 +33,13 @@ TOKEN_URI = "protocol/openid-connect/token"
 
 SCICAT_URL = "http://localhost:3000/api/v3"
 
-PROVIDER = "https://authentication.test.ess.eu:9031"
-CLIENT_ID = "scitacean"
-AUTH_URI = "as/device_authz.oauth2"
-TOKEN_URI = "as/token.oauth2"
 DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
+
+# ESS testing
+# PROVIDER = "https://authentication.test.ess.eu:9031"
+# CLIENT_ID = "scitacean"
+# AUTH_URI = "as/device_authz.oauth2"
+# TOKEN_URI = "as/token.oauth2"
 
 
 def main():

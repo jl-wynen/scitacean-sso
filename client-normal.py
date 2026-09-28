@@ -42,11 +42,11 @@ REDIRECT_URI = f"http://localhost:{PORT}"
 
 SCICAT_URL = "http://localhost:3000/api/v3"
 
-
-PROVIDER = "https://authentication.test.ess.eu:9031"
-CLIENT_ID = "scitacean"
-AUTH_URI = "as/authorization.oauth2"
-TOKEN_URI = "as/token.oauth2"
+# ESS testing
+# PROVIDER = "https://authentication.test.ess.eu:9031"
+# CLIENT_ID = "scitacean"
+# AUTH_URI = "as/authorization.oauth2"
+# TOKEN_URI = "as/token.oauth2"
 
 
 def main():
@@ -104,7 +104,7 @@ def login() -> str:
             "client_id": CLIENT_ID,
             "grant_type": "authorization_code",
             # space-delimited (https://www.keycloak.org/securing-apps/token-exchange):
-            "scopes": " ".join(SCOPES),
+            "scope": " ".join(SCOPES),
             "redirect_uri": REDIRECT_URI,
             "code_verifier": code_verifier,
         }
