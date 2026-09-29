@@ -23,6 +23,12 @@ import httpx
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization as crypto_serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    decode_dss_signature,
+    encode_dss_signature,
+)
+from cryptography.hazmat.primitives import hashes
 from rich import print
 from rich.logging import RichHandler
 from scitacean._internal import jwt
@@ -60,7 +66,25 @@ def main():
     )
     logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
-    key = Ed25519PrivateKey.generate()
+    ssh_key = ssh_login()
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.connect(
+        hostname="sftp.esss.dk",
+        username="janlukaswynen",
+        # key_filename="/home/jl/.ssh/id_opk",
+        pkey=ssh_key,
+        allow_agent=False,      # otherwise the agent may win before your key is tried
+        look_for_keys=False,    # don't fall back to ~/.ssh/id_*
+    )
+    sftp = client.open_sftp()
+    print(sftp.listdir("/ess/data"))
+
+def ssh_login() -> paramiko.PKey:
+    key = ec.generate_private_key(ec.SECP256R1())
+
+    # key = Ed25519PrivateKey.generate()
     # private_key = key.private_bytes(
     #     crypto_serialization.Encoding.PEM,
     #     crypto_serialization.PrivateFormat.PKCS8,
@@ -78,7 +102,7 @@ def main():
     # print(private_key)
     # print(public_key)
 
-    rz = secrets.token_urlsafe()
+    rz = secrets.token_bytes(32).hex()
     cic_protected_b64, nonce = make_cic(key=key, rz=rz)
 
     idp_tokens = get_idp_tokens(nonce)
@@ -92,21 +116,37 @@ def main():
 
     print("=== client ===")
     signing_input = f"{cic_protected_b64}.{payload_b64}".encode("ascii")
-    user_sig = key.sign(signing_input)
+
+    # user_sig = key.sign(signing_input)
+
+    der = key.sign(signing_input, ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(der)
+    user_sig = r.to_bytes(32, "big") + s.to_bytes(32, "big")
+
     try:
-        key.public_key().verify(user_sig, signing_input)
+        key.public_key().verify(
+            encode_dss_signature(
+                int.from_bytes(user_sig[:32], "big"),
+                int.from_bytes(user_sig[32:], "big"),
+            ),
+            signing_input,
+            ec.ECDSA(hashes.SHA256()),
+        )
     except InvalidSignature:
         print("invalid\n")
     else:
         print("valid\n")
 
-    pk_token = {
-        "payload": payload_b64,
-        "signatures": [
-            {"protected": op_protected_b64, "signature": op_sig_b64},
-            {"protected": cic_protected_b64, "signature": b64u(user_sig)},
-        ],
-    }
+    # pk_token = {
+    #     "payload": payload_b64,
+    #     "signatures": [
+    #         {"protected": op_protected_b64, "signature": op_sig_b64},
+    #         {"protected": cic_protected_b64, "signature": b64u(user_sig)},
+    #     ],
+    # }
+    # opkssh uses this format, not a JWS:
+    pk_token = ":".join([payload_b64, op_protected_b64, op_sig_b64,
+                         cic_protected_b64, b64u(user_sig)])
     print(pk_token)
 
     print("=== serialize ===")
@@ -117,32 +157,17 @@ def main():
     )
     print(cert)
 
-    priv = key.private_bytes(
-        crypto_serialization.Encoding.PEM,
-        crypto_serialization.PrivateFormat.OpenSSH,   # not PKCS8 — ssh wants this
-        crypto_serialization.NoEncryption(),
-    )
-    d = pathlib.Path.home() / ".ssh"
-    (d / "id_opk").write_bytes(priv)
-    (d / "id_opk").chmod(0o600)
-    (d / "id_opk-cert.pub").write_text(cert + "\n")
+    # priv = key.private_bytes(
+    #     crypto_serialization.Encoding.PEM,
+    #     crypto_serialization.PrivateFormat.OpenSSH,   # not PKCS8 — ssh wants this
+    #     crypto_serialization.NoEncryption(),
+    # )
+    # d = pathlib.Path.home() / ".ssh"
+    # (d / "id_opk").write_bytes(priv)
+    # (d / "id_opk").chmod(0o600)
+    # (d / "id_opk-cert.pub").write_text(cert + "\n")
 
-
-    ssh_key = paramiko_key_from(key, cert)
-
-    client = paramiko.SSHClient()
-    client.load_system_host_keys()
-    client.connect(
-        hostname="sftp.esss.dk",
-        username="janlukaswynen",
-        key_filename="/home/jl/.ssh/id_opk",
-        # pkey=ssh_key,
-        allow_agent=False,      # otherwise the agent may win before your key is tried
-        look_for_keys=False,    # don't fall back to ~/.ssh/id_*
-    )
-    sftp = client.open_sftp()
-
-    print(sftp.listdir("/ess/data"))
+    return paramiko_key_from(key, cert)
 
 def paramiko_key_from(key: Ed25519PrivateKey, cert: str) -> paramiko.PKey:
     pem = key.private_bytes(
@@ -150,14 +175,11 @@ def paramiko_key_from(key: Ed25519PrivateKey, cert: str) -> paramiko.PKey:
         crypto_serialization.PrivateFormat.OpenSSH,  # paramiko's Ed25519Key only parses this
         crypto_serialization.NoEncryption(),
     ).decode()
-    pkey = paramiko.Ed25519Key.from_private_key(io.StringIO(pem))
-    # cert is "ssh-ed25519-cert-v01@openssh.com <b64> <key_id>"
-    # pkey.load_certificate(paramiko.PublicBlob.from_string(cert))
-    # pkey.load_certificate(cert)  # "ssh-ed25519-cert-v01@openssh.com <b64> <key_id>"
-    pkey.public_blob = paramiko.PublicBlob.from_string(cert)
+    pkey = paramiko.ECDSAKey.from_private_key(io.StringIO(pem))
+    pkey.load_certificate(cert)
     return pkey
 
-def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateKey, principals:list[str]):
+def create_cert(pk_token: str|dict[str, Any], payload_b64: str, key: Ed25519PrivateKey, principals:list[str]):
     import struct
     import time
 
@@ -170,6 +192,13 @@ def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateK
     def _u32(n: int) -> bytes:
         return struct.pack(">I", n)
 
+    def _mpint(n: int) -> bytes:
+        """SSH mpint: big-endian two's complement, minimal length."""
+        if n == 0:
+            return _string(b"")
+        b = n.to_bytes((n.bit_length() + 8) // 8, "big")  # +8 -> leading 0x00 if high bit set
+        return _string(b)
+
     def _name_list(items: list[str]) -> bytes:
         return _string(b"".join(_string(i.encode()) for i in items))
 
@@ -178,53 +207,64 @@ def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateK
         body = b"".join(_string(k.encode()) + _string(v) for k, v in sorted(pairs))
         return _string(body)
 
-    CERT_TYPE = b"ssh-ed25519-cert-v01@openssh.com"
+    # CERT_TYPE = b"ssh-ed25519-cert-v01@openssh.com"
+
+    CERT_TYPE = b"ecdsa-sha2-nistp256-cert-v01@openssh.com"
+    KEY_TYPE = b"ecdsa-sha2-nistp256"
+    CURVE = b"nistp256"
+
     SSH_CERT_TYPE_USER = 1
 
     def build_ssh_cert(
         key, pk_token_blob: bytes, principals: list[str], key_id: str, valid_before: int
     ) -> str:
-        raw_pub = key.public_key().public_bytes(
-            crypto_serialization.Encoding.Raw,
-            crypto_serialization.PublicFormat.Raw,
-        )
-        ca_blob = _string(b"ssh-ed25519") + _string(raw_pub)  # self-signed: CA == upk
+        point = key.public_key().public_bytes(
+            crypto_serialization.Encoding.X962,
+            crypto_serialization.PublicFormat.UncompressedPoint,
+        )  # 0x04 || X || Y, 65 bytes
+        ca_blob = _string(KEY_TYPE) + _string(CURVE) + _string(point)
 
         tbs = (
             _string(CERT_TYPE)
-            + _string(
-                secrets.token_bytes(32)
-            )  # nonce (anti-collision, not the OIDC nonce)
-            + _string(raw_pub)  # pk
-            + _u64(0)  # serial
-            + _u32(SSH_CERT_TYPE_USER)  # type
-            + _string(key_id.encode())  # key id
-            + _name_list(principals)  # valid principals
-            + _u64(int(time.time()) - 60)  # valid after (clock skew)
-            + _u64(valid_before)  # valid before
-            + _kv_list([])  # critical options
-            + _kv_list([("openpubkey-pkt", pk_token_blob)])
-            + _string(b"")  # reserved
-            + _string(ca_blob)  # signature key
+            + _string(secrets.token_bytes(32))   # nonce (anti-collision, not the OIDC nonce)
+            + _string(CURVE)                     # pk: curve name ...
+            + _string(point)                     # ... and point (two separate fields)
+            + _u64(0)                            # serial
+            + _u32(SSH_CERT_TYPE_USER)           # type
+            + _string(key_id.encode())           # key id
+            + _name_list(principals)             # valid principals
+            + _u64(int(time.time()) - 60)        # valid after (clock skew)
+            + _u64(valid_before)                 # valid before
+            + _kv_list([])                       # critical options
+            + _kv_list(
+                [
+                    ("openpubkey-pkt", _string(pk_token_blob)),  # value is string-wrapped
+                    ("permit-X11-forwarding", b""),
+                    ("permit-agent-forwarding", b""),
+                    ("permit-port-forwarding", b""),
+                    ("permit-pty", b""),
+                    ("permit-user-rc", b""),
+                ]
+            )
+            + _string(b"")                       # reserved
+            + _string(ca_blob)                   # signature key (string-wrapped key blob)
         )
 
-        sig = key.sign(tbs)
-        cert = tbs + _string(_string(b"ssh-ed25519") + _string(sig))
+        der = key.sign(tbs, ec.ECDSA(hashes.SHA256()))
+        r, s = decode_dss_signature(der)
+        sig_blob = _string(KEY_TYPE) + _string(_mpint(r) + _mpint(s))
+
+        cert = tbs + _string(sig_blob)
         return f"{CERT_TYPE.decode()} {base64.b64encode(cert).decode()} {key_id}"
 
-    # CAVEATS (TODO)
-    # - Whether the extension data is wrapped in another SSH string. OpenSSH's own valued extensions
-    #   (force-command) use an embedded string, and ssh-keygen -O extension: does too — but some
-    #   implementations store custom extension payloads raw. If your AuthorizedKeysCommand is opkssh,
-    #   match whatever it expects; a one-byte-offset mismatch here is the most likely thing to break.
-    # - The extension name. openpubkey-pkt has no @domain suffix, which is technically against the
-    #   SSH naming convention for non-standard extensions and which ssh-keygen will reject on the
-    #   signing side. It's fine when you encode the cert yourself, as above.
-
     payload = json.loads(b64u_decode(payload_b64))
+    if isinstance(pk_token, str):
+        pk_token_blob = pk_token.encode("ascii")
+    else:
+        pk_token_blob = json.dumps(pk_token, separators=(",", ":")).encode()
     return build_ssh_cert(
         key,
-        pk_token_blob=json.dumps(pk_token, separators=(",", ":")).encode(),
+        pk_token_blob=pk_token_blob,
         principals=principals,
         # free form, useful for server-side auth log:
         key_id=payload.get("email", payload["sub"]),
@@ -234,18 +274,32 @@ def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateK
 
 def make_cic(key: Ed25519PrivateKey, rz: str) -> tuple[str, str]:
     """Return (protected_cic_b64, nonce)."""
-    raw = key.public_key().public_bytes(
-        crypto_serialization.Encoding.Raw,
-        crypto_serialization.PublicFormat.Raw,
-    )
-    upk = {"kty": "OKP", "crv": "Ed25519", "x": b64u(raw), "alg": "EdDSA"}
+    # 1st attempt:
+#     raw = key.public_key().public_bytes(
+#         crypto_serialization.Encoding.Raw,
+#         crypto_serialization.PublicFormat.Raw,
+#     )
+#     upk = {"kty": "OKP", "crv": "Ed25519", "x": b64u(raw), "alg": "EdDSA"}
+#
+#     cic = {"alg": "EdDSA", "upk": upk, "rz": rz, "typ": "CIC"}
 
-    cic = {"alg": "EdDSA", "upk": upk, "rz": rz, "typ": "CIC"}
+    # 2nd attempt to match opkssh:
+    nums = key.public_key().public_numbers()
+    upk ={
+        "alg": "ES256",
+        "crv": "P-256",
+        "kty": "EC",
+        "x": b64u(nums.x.to_bytes(32, "big")),
+        "y": b64u(nums.y.to_bytes(32, "big")),
+    }
+    cic = {"alg": "ES256", "rz": rz, "typ": "CIC", "upk": upk}
+    cic_json = json.dumps(cic, sort_keys=True, separators=(",", ":")).encode()
+
     # canonical: sorted keys, no whitespace -> reproducible by the verifier
-    protected = b64u(json.dumps(cic, sort_keys=True, separators=(",", ":")).encode())
+    protected = b64u(cic_json)
     nonce = b64u(
-        hashlib.sha3_256(protected.encode("ascii")).digest()
-    )  # TODO check hash alg with SSH server
+        hashlib.sha3_256(cic_json).digest()
+    )
     return protected, nonce
 
 
