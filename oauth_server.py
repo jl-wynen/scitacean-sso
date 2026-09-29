@@ -12,10 +12,10 @@ from urllib import parse
 
 @contextmanager
 def launch_auth_server(
-    *, port: int, timeout: int, state: str, issuer: str
+    *, port: int, timeout: int, state: str, issuer: str, path: str = "",
 ) -> Generator[OAuthHttpServer, None, None]:
     with OAuthHttpServer(
-        ("", port), OAuthHttpHandler, timeout=timeout, state=state, issuer=issuer
+        ("", port), OAuthHttpHandler, timeout=timeout, state=state, issuer=issuer, path=path
     ) as server:
         yield server
 
@@ -31,12 +31,14 @@ class OAuthHttpServer(HTTPServer):
         timeout: int,
         state: str,
         issuer: str,
+        path:str
     ) -> None:
         super().__init__(server_address, RequestHandlerClass)
         self.timeout = timeout
         self.state = state
         self.issuer = issuer
         self.authorization_code: str | None = None
+        self.target_path = path
 
     def handle_timeout(self) -> None:
         super().handle_timeout()
@@ -55,6 +57,12 @@ class OAuthHttpHandler(BaseHTTPRequestHandler):
         server: OAuthHttpServer = self.server  # type: ignore[assignment]
 
         parsed = parse.urlparse(self.path)
+        if parsed.path != server.target_path:
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+
         qs = parse.parse_qs(parsed.query)
         if qs.get("state", None) != [server.state]:
             self._send_result_page(success=False)

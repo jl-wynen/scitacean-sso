@@ -3,6 +3,7 @@
 # dependencies = [
 #   "cryptography>=50.0.1",
 #   "httpx",
+#   "paramiko",
 #   "rich",
 #   "scitacean>=26",
 # ]
@@ -16,6 +17,7 @@ import pathlib
 import secrets
 import webbrowser
 from typing import Any
+import paramiko
 
 import httpx
 from cryptography.exceptions import InvalidSignature
@@ -24,7 +26,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from rich import print
 from rich.logging import RichHandler
 from scitacean._internal import jwt
-
+import io
 from oauth_server import launch_auth_server
 from pkce import generate_pkce_pair
 
@@ -32,16 +34,20 @@ from pkce import generate_pkce_pair
 # PROVIDER = "http://keycloak.local:8080/realms/pkce-test"
 PROVIDER = "http://localhost:8080/realms/pkce-test"
 CLIENT_ID = "scicat-native-normal"
-# USERNAME = "python"
-# PASSWORD = "pixie"
-SCOPES = ["openid", "profile"]
+
+# DMSC Keycloak:
+PROVIDER = "https://identity.esss.dk/realms/iam"
+CLIENT_ID = "openpubkey"
+
+SCOPES = ["openid", "email", "profile"]
 
 # Relative to `PROVIDER`
 AUTH_URI = "protocol/openid-connect/auth"
 TOKEN_URI = "protocol/openid-connect/token"
 
-PORT = 8081
-REDIRECT_URI = f"http://localhost:{PORT}"
+PORT = 10001
+PATH = "/login-callback"
+REDIRECT_URI = f"http://localhost:{PORT}{PATH}"
 
 
 # see https://eprint.iacr.org/2023/296.pdf
@@ -52,6 +58,7 @@ def main():
         datefmt="[%X]",
         handlers=[RichHandler()],
     )
+    logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
     key = Ed25519PrivateKey.generate()
     # private_key = key.private_bytes(
@@ -103,21 +110,54 @@ def main():
     print(pk_token)
 
     print("=== serialize ===")
-    cert = create_cert(pk_token, payload_b64, key)
+    cert = create_cert(pk_token, payload_b64, key,
+        principals=["opkssh-wildcard"],
+        # principals=["janlukaswynen"],
+        # principals=[payload["email"]],
+    )
     print(cert)
 
-    # priv = key.private_bytes(
-    #     crypto_serialization.Encoding.PEM,
-    #     crypto_serialization.PrivateFormat.OpenSSH,   # not PKCS8 — ssh wants this
-    #     crypto_serialization.NoEncryption(),
-    # )
-    # d = pathlib.Path.home() / ".ssh"
-    # (d / "id_opk").write_bytes(priv)
-    # (d / "id_opk").chmod(0o600)
-    # (d / "id_opk-cert.pub").write_text(cert + "\n")
+    priv = key.private_bytes(
+        crypto_serialization.Encoding.PEM,
+        crypto_serialization.PrivateFormat.OpenSSH,   # not PKCS8 — ssh wants this
+        crypto_serialization.NoEncryption(),
+    )
+    d = pathlib.Path.home() / ".ssh"
+    (d / "id_opk").write_bytes(priv)
+    (d / "id_opk").chmod(0o600)
+    (d / "id_opk-cert.pub").write_text(cert + "\n")
 
 
-def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateKey):
+    ssh_key = paramiko_key_from(key, cert)
+
+    client = paramiko.SSHClient()
+    client.load_system_host_keys()
+    client.connect(
+        hostname="sftp.esss.dk",
+        username="janlukaswynen",
+        key_filename="/home/jl/.ssh/id_opk",
+        # pkey=ssh_key,
+        allow_agent=False,      # otherwise the agent may win before your key is tried
+        look_for_keys=False,    # don't fall back to ~/.ssh/id_*
+    )
+    sftp = client.open_sftp()
+
+    print(sftp.listdir("/ess/data"))
+
+def paramiko_key_from(key: Ed25519PrivateKey, cert: str) -> paramiko.PKey:
+    pem = key.private_bytes(
+        crypto_serialization.Encoding.PEM,
+        crypto_serialization.PrivateFormat.OpenSSH,  # paramiko's Ed25519Key only parses this
+        crypto_serialization.NoEncryption(),
+    ).decode()
+    pkey = paramiko.Ed25519Key.from_private_key(io.StringIO(pem))
+    # cert is "ssh-ed25519-cert-v01@openssh.com <b64> <key_id>"
+    # pkey.load_certificate(paramiko.PublicBlob.from_string(cert))
+    # pkey.load_certificate(cert)  # "ssh-ed25519-cert-v01@openssh.com <b64> <key_id>"
+    pkey.public_blob = paramiko.PublicBlob.from_string(cert)
+    return pkey
+
+def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateKey, principals:list[str]):
     import struct
     import time
 
@@ -165,7 +205,7 @@ def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateK
             + _kv_list([])  # critical options
             + _kv_list([("openpubkey-pkt", pk_token_blob)])
             + _string(b"")  # reserved
-            + ca_blob  # signature key
+            + _string(ca_blob)  # signature key
         )
 
         sig = key.sign(tbs)
@@ -185,7 +225,7 @@ def create_cert(pk_token: dict[str, Any], payload_b64: str, key: Ed25519PrivateK
     return build_ssh_cert(
         key,
         pk_token_blob=json.dumps(pk_token, separators=(",", ":")).encode(),
-        principals=["jl"],  # TODO local account(s) on the target host
+        principals=principals,
         # free form, useful for server-side auth log:
         key_id=payload.get("email", payload["sub"]),
         valid_before=int(payload["exp"]),
@@ -226,7 +266,7 @@ def get_idp_tokens(nonce: str) -> str:
 
         # Start a server to handle the OAuth redirect with the auth code:
         with launch_auth_server(
-            port=PORT, timeout=30, issuer=PROVIDER, state=state
+            port=PORT, timeout=30, issuer=PROVIDER, state=state,path=PATH
         ) as server:
             # Prompt the user to log in:
             open_in_browser(auth_uri)
