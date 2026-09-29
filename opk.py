@@ -66,13 +66,13 @@ def main():
     )
     logging.getLogger("paramiko").setLevel(logging.DEBUG)
 
-    ssh_key = ssh_login()
+    ssh_key, username = ssh_login()
 
     client = paramiko.SSHClient()
     client.load_system_host_keys()
     client.connect(
         hostname="sftp.esss.dk",
-        username="janlukaswynen",
+        username=username,
         # key_filename="/home/jl/.ssh/id_opk",
         pkey=ssh_key,
         allow_agent=False,      # otherwise the agent may win before your key is tried
@@ -81,26 +81,8 @@ def main():
     sftp = client.open_sftp()
     print(sftp.listdir("/ess/data"))
 
-def ssh_login() -> paramiko.PKey:
+def ssh_login() -> tuple[paramiko.PKey,str]:
     key = ec.generate_private_key(ec.SECP256R1())
-
-    # key = Ed25519PrivateKey.generate()
-    # private_key = key.private_bytes(
-    #     crypto_serialization.Encoding.PEM,
-    #     crypto_serialization.PrivateFormat.PKCS8,
-    #     crypto_serialization.NoEncryption(),
-    # )
-    # public_key = (
-    #     key.public_key()
-    #     .public_bytes(
-    #         # TODO? Encoding.Raw and PublicFormat.Raw ?
-    #         crypto_serialization.Encoding.OpenSSH,
-    #         crypto_serialization.PublicFormat.OpenSSH,
-    #     )
-    #     .decode()
-    # )
-    # print(private_key)
-    # print(public_key)
 
     rz = secrets.token_bytes(32).hex()
     cic_protected_b64, nonce = make_cic(key=key, rz=rz)
@@ -116,8 +98,6 @@ def ssh_login() -> paramiko.PKey:
 
     print("=== client ===")
     signing_input = f"{cic_protected_b64}.{payload_b64}".encode("ascii")
-
-    # user_sig = key.sign(signing_input)
 
     der = key.sign(signing_input, ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(der)
@@ -137,13 +117,6 @@ def ssh_login() -> paramiko.PKey:
     else:
         print("valid\n")
 
-    # pk_token = {
-    #     "payload": payload_b64,
-    #     "signatures": [
-    #         {"protected": op_protected_b64, "signature": op_sig_b64},
-    #         {"protected": cic_protected_b64, "signature": b64u(user_sig)},
-    #     ],
-    # }
     # opkssh uses this format, not a JWS:
     pk_token = ":".join([payload_b64, op_protected_b64, op_sig_b64,
                          cic_protected_b64, b64u(user_sig)])
@@ -167,7 +140,9 @@ def ssh_login() -> paramiko.PKey:
     # (d / "id_opk").chmod(0o600)
     # (d / "id_opk-cert.pub").write_text(cert + "\n")
 
-    return paramiko_key_from(key, cert)
+    username = payload['preferred_username']
+
+    return paramiko_key_from(key, cert), username
 
 def paramiko_key_from(key: Ed25519PrivateKey, cert: str) -> paramiko.PKey:
     pem = key.private_bytes(
